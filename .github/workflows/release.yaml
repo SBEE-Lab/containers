@@ -17,7 +17,6 @@ concurrency:
 jobs:
   release:
     runs-on: [self-hosted, psi, trusted-release, container-release]
-    environment: container-release
     steps:
       - name: Checkout trusted revision
         uses: actions/checkout@v7

@@ -8,7 +8,6 @@ sys.path.insert(0, str(Path(__file__).parents[2]))
 
 from scripts.updater import update
 
-
 if __name__ == "__main__":
     result = update(
         image_dir=Path(__file__).parent,
