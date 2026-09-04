@@ -40,6 +40,7 @@
               deadnix.enable = true;
               keep-sorted.enable = true;
               nixfmt.enable = true;
+              ruff-check.enable = true;
               ruff-format.enable = true;
               statix.enable = true;
             };
@@ -50,14 +51,19 @@
           formatter = treefmtEval.config.build.wrapper;
           formatting = treefmtEval.config.build.check flake;
           devshell = self.callPackage ./devshell.nix { };
+          checks = self.callPackage ./checks.nix { };
         })
       );
     in
     {
-      checks = eachSystem (system: {
-        formatting = scopes.${system}.formatting;
-        devshell-default = scopes.${system}.devshell;
-      });
+      checks = eachSystem (
+        system:
+        scopes.${system}.checks
+        // {
+          formatting = scopes.${system}.formatting;
+          devshell-default = scopes.${system}.devshell;
+        }
+      );
 
       devShells = eachSystem (system: {
         default = scopes.${system}.devshell;

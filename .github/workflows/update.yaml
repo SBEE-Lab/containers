@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: write
   contents: write
   pull-requests: write
 
@@ -33,7 +32,7 @@ jobs:
           submodules: true
       - name: Install Nix
         if: steps.existing.outputs.skip != 'true'
-        uses: cachix/install-nix-action@v31
+        uses: NixOS/nix-installer-action@main
       - name: Update images
         if: steps.existing.outputs.skip != 'true'
         run: nix develop -c python scripts/updater/run.py
