@@ -84,6 +84,10 @@ def _require_unpublished(image: str) -> None:
         )
 
 
+def _attestation_arguments() -> list[str]:
+    return ["--provenance=mode=max,version=v1", "--sbom=true"]
+
+
 def _registry_cache_arguments(image: str) -> list[str]:
     cache = f"{image}-cache:buildkit"
     return [
@@ -125,8 +129,7 @@ def build(
                 "linux/amd64",
                 "--tag",
                 tag,
-                "--provenance=mode=max",
-                "--sbom=true",
+                *_attestation_arguments(),
                 "--metadata-file",
                 str(metadata),
                 *(_registry_cache_arguments(image) if push else []),
