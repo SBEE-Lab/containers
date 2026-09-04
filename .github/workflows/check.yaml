@@ -1,0 +1,28 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+      - name: Check formatting
+        run: nix fmt -- --ci
+      - name: Run unit tests
+        run: nix develop -c python -m unittest discover -s scripts -p '*_test.py'
+      - name: Check image entrypoints
+        run: |
+          for script in images/*/build.py; do
+            nix develop -c python "$script" --help
+          done

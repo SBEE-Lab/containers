@@ -1,0 +1,56 @@
+name: Update Images
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-images
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip while update PR is open
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open             --search 'in:title "images: update upstream releases"'             --json number --jq length)
+          echo "skip=$([[ $count -gt 0 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Checkout
+        if: steps.existing.outputs.skip != 'true'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: true
+      - name: Install Nix
+        if: steps.existing.outputs.skip != 'true'
+        uses: cachix/install-nix-action@v31
+      - name: Update images
+        if: steps.existing.outputs.skip != 'true'
+        run: nix develop -c python scripts/updater/run.py
+      - name: Create pull request
+        if: steps.existing.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- images; then
+            echo "No image updates found"
+            exit 0
+          fi
+          branch="automation/update-images-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add images/*/src
+          git commit -m "images: update upstream releases"
+          git push origin "$branch"
+          gh pr create             --base main             --head "$branch"             --title "images: update upstream releases"             --body "Update image source submodules to latest stable SemVer releases."
