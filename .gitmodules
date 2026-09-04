@@ -1,0 +1,3 @@
+[submodule "images/alphafold3/src"]
+	path = images/alphafold3/src
+	url = https://github.com/google-deepmind/alphafold3.git
