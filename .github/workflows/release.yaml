@@ -17,12 +17,21 @@ concurrency:
 jobs:
   release:
     runs-on: [self-hosted, psi, trusted-release, container-release]
+    env:
+      BUILDX_BUILDER: release-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout trusted revision
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: true
+      - name: Set up Buildx
+        run: |
+          docker buildx create \
+            --name "$BUILDX_BUILDER" \
+            --driver docker-container \
+            --use
+          docker buildx inspect --bootstrap
       - name: Select images
         id: images
         env:
@@ -54,6 +63,12 @@ jobs:
             [[ -n "$image" ]] || continue
             nix develop -c python "images/$image/build.py" --push
           done <<< "$IMAGES"
+      - name: Remove Buildx builder
+        if: always()
+        run: |
+          if docker buildx inspect "$BUILDX_BUILDER" >/dev/null 2>&1; then
+            docker buildx rm "$BUILDX_BUILDER"
+          fi
       - name: Log out of registry
         if: always() && steps.images.outputs.names != ''
         run: docker logout registry.sjanglab.org
