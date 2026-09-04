@@ -35,6 +35,7 @@
           pkgs = pkgsFor.${system};
           treefmtEval = treefmt-nix.lib.evalModule pkgs {
             projectRootFile = "flake.nix";
+            settings.global.excludes = [ "images/*/src/**" ];
             programs = {
               deadnix.enable = true;
               keep-sorted.enable = true;
