@@ -8,40 +8,60 @@
   };
 
   outputs =
-    {
+    inputs@{
       self,
       nixpkgs,
       treefmt-nix,
     }:
     let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-      treefmtEval = treefmt-nix.lib.evalModule pkgs {
-        projectRootFile = "flake.nix";
-        programs = {
-          deadnix.enable = true;
-          keep-sorted.enable = true;
-          nixfmt.enable = true;
-          ruff-format.enable = true;
-          statix.enable = true;
-        };
+      inherit (nixpkgs) lib;
+
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
+      eachSystem = lib.genAttrs systems;
+
+      flake = self // {
+        inherit inputs;
       };
+
+      pkgsFor = eachSystem (system: import nixpkgs { inherit system; });
+
+      scopes = eachSystem (
+        system:
+        let
+          pkgs = pkgsFor.${system};
+          treefmtEval = treefmt-nix.lib.evalModule pkgs {
+            projectRootFile = "flake.nix";
+            programs = {
+              deadnix.enable = true;
+              keep-sorted.enable = true;
+              nixfmt.enable = true;
+              ruff-format.enable = true;
+              statix.enable = true;
+            };
+          };
+        in
+        lib.makeScope pkgs.newScope (self: {
+          inherit flake inputs system;
+          formatter = treefmtEval.config.build.wrapper;
+          formatting = treefmtEval.config.build.check flake;
+          devshell = self.callPackage ./devshell.nix { };
+        })
+      );
     in
     {
-      checks.${system}.formatting = treefmtEval.config.build.check self;
+      checks = eachSystem (system: {
+        formatting = scopes.${system}.formatting;
+        devshell-default = scopes.${system}.devshell;
+      });
 
-      devShells.${system}.default = pkgs.mkShell {
-        packages = with pkgs; [
-          cosign
-          docker-client
-          gh
-          git
-          jq
-          python312
-          syft
-        ];
-      };
+      devShells = eachSystem (system: {
+        default = scopes.${system}.devshell;
+      });
 
-      formatter.${system} = treefmtEval.config.build.wrapper;
+      formatter = eachSystem (system: scopes.${system}.formatter);
     };
 }
