@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tarfile
 import tempfile
@@ -86,6 +87,34 @@ def _require_unpublished(image: str) -> None:
         )
 
 
+def _derive_dockerfile(
+    source: Path, destination: Path, build_arguments: list[str]
+) -> None:
+    """Declare non-secret build arguments in each stage of a derived Dockerfile."""
+    for name in build_arguments:
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
+            raise ValueError(f"invalid build argument name: {name}")
+
+    lines: list[str] = []
+    stages = 0
+    for line in source.read_text().splitlines(keepends=True):
+        lines.append(line)
+        if re.match(r"^\s*FROM(?:\s|$)", line, re.IGNORECASE):
+            stages += 1
+            lines.extend(f"ARG {name}\n" for name in build_arguments)
+    if stages == 0:
+        raise ValueError(f"Dockerfile has no FROM instruction: {source}")
+    destination.write_text("".join(lines))
+
+
+def _build_argument_arguments(build_arguments: dict[str, str]) -> list[str]:
+    return [
+        argument
+        for name, value in build_arguments.items()
+        for argument in ("--build-arg", f"{name}={value}")
+    ]
+
+
 def _attestation_arguments() -> list[str]:
     return ["--provenance=mode=max,version=v1", "--sbom=true"]
 
@@ -139,10 +168,12 @@ def build(
     image_dir: Path,
     image: str,
     dockerfile: str = "Dockerfile",
+    build_arguments: dict[str, str] | None = None,
     push: bool = False,
 ) -> BuildResult:
     """Build source recorded by committed submodule gitlink."""
     image_dir = image_dir.resolve()
+    build_arguments = build_arguments or {}
     _root, source, revision = _snapshot_revision(image_dir)
     version = _version_for_revision(source, revision)
     tag = f"{image}:{version}"
@@ -154,17 +185,25 @@ def build(
         context = temporary / "src"
         metadata = temporary / "metadata.json"
         _export_snapshot(source, revision, context)
+        source_dockerfile = context / dockerfile
+        build_dockerfile = source_dockerfile
+        if build_arguments:
+            build_dockerfile = temporary / "Dockerfile.derived"
+            _derive_dockerfile(
+                source_dockerfile, build_dockerfile, list(build_arguments)
+            )
         subprocess.run(
             [
                 "docker",
                 "buildx",
                 "build",
                 "--file",
-                str(context / dockerfile),
+                str(build_dockerfile),
                 "--platform",
                 "linux/amd64",
                 "--tag",
                 tag,
+                *_build_argument_arguments(build_arguments),
                 *_attestation_arguments(),
                 "--metadata-file",
                 str(metadata),

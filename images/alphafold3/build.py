@@ -19,6 +19,7 @@ def main() -> None:
         image_dir=Path(__file__).parent,
         image="registry.sjanglab.org/sjanglab/alphafold3",
         dockerfile="docker/Dockerfile",
+        build_arguments={"UV_HTTP_TIMEOUT": "300"},
         push=args.push,
     )
     print(result.digest)
