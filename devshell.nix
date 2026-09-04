@@ -1,7 +1,6 @@
 { pkgs, formatter }:
 pkgs.mkShellNoCC {
   packages = with pkgs; [
-    cosign
     curl
     docker-buildx
     docker-client
