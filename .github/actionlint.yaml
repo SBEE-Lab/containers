@@ -1,6 +1,0 @@
-self-hosted-runner:
-  labels:
-    - psi
-    - gpu
-    - trusted-release
-    - container-release
