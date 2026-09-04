@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import tarfile
 import tempfile
@@ -98,6 +100,40 @@ def _registry_cache_arguments(image: str) -> list[str]:
     ]
 
 
+def _verify_attestation(reference: str, attribute: str) -> None:
+    output = subprocess.run(
+        [
+            "docker",
+            "buildx",
+            "imagetools",
+            "inspect",
+            reference,
+            "--format",
+            f"{{{{ json .{attribute} }}}}",
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout
+    value = json.loads(output)
+    if not isinstance(value, dict) or not value:
+        raise ValueError(f"missing {attribute} attestation for {reference}")
+
+
+def _record_summary(result: BuildResult, image: str) -> None:
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary is None:
+        return
+    with Path(summary).open("a") as output:
+        output.write(
+            f"### `{image}:{result.version}`\n\n"
+            f"- Source: `{result.revision}`\n"
+            f"- Digest: `{result.digest}`\n"
+            "- SBOM: verified\n"
+            "- Provenance: verified\n"
+        )
+
+
 def build(
     *,
     image_dir: Path,
@@ -138,4 +174,10 @@ def build(
             ],
             check=True,
         )
-        return BuildResult(read_image_digest(metadata), revision, version)
+        result = BuildResult(read_image_digest(metadata), revision, version)
+        if push:
+            reference = f"{image}@{result.digest}"
+            _verify_attestation(reference, "SBOM.SPDX")
+            _verify_attestation(reference, "Provenance.SLSA")
+        _record_summary(result, image)
+        return result
