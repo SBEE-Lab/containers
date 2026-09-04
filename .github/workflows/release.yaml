@@ -17,6 +17,7 @@ concurrency:
 jobs:
   release:
     runs-on: [self-hosted, psi, trusted-release, container-release]
+    timeout-minutes: 180
     env:
       BUILDX_BUILDER: release-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
