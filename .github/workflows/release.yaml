@@ -1,0 +1,60 @@
+name: Release Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "images/*/src"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-images
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: [self-hosted, psi, trusted-release, container-release]
+    environment: container-release
+    steps:
+      - name: Checkout trusted revision
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: true
+      - name: Select images
+        id: images
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            images=$(nix develop -c python scripts/builder/changed.py --all)
+          else
+            images=$(nix develop -c python scripts/builder/changed.py "$BEFORE" "$GITHUB_SHA")
+          fi
+          {
+            echo "names<<EOF"
+            echo "$images"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Log in to registry
+        if: steps.images.outputs.names != ''
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          printf '%s' "$REGISTRY_PASSWORD" | docker login registry.sjanglab.org             --username "$REGISTRY_USERNAME" --password-stdin
+      - name: Build and push images
+        if: steps.images.outputs.names != ''
+        env:
+          IMAGES: ${{ steps.images.outputs.names }}
+        run: |
+          while IFS= read -r image; do
+            [[ -n "$image" ]] || continue
+            nix develop -c python "images/$image/build.py" --push
+          done <<< "$IMAGES"
+      - name: Log out of registry
+        if: always() && steps.images.outputs.names != ''
+        run: docker logout registry.sjanglab.org
