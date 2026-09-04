@@ -84,6 +84,16 @@ def _require_unpublished(image: str) -> None:
         )
 
 
+def _registry_cache_arguments(image: str) -> list[str]:
+    cache = f"{image}-cache:buildkit"
+    return [
+        "--cache-from",
+        f"type=registry,ref={cache}",
+        "--cache-to",
+        f"type=registry,ref={cache},mode=max,image-manifest=true,oci-mediatypes=true",
+    ]
+
+
 def build(
     *,
     image_dir: Path,
@@ -119,6 +129,7 @@ def build(
                 "--sbom=true",
                 "--metadata-file",
                 str(metadata),
+                *(_registry_cache_arguments(image) if push else []),
                 "--push" if push else "--load",
                 str(context),
             ],
