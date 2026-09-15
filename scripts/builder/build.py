@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from scripts import _git_tags
-from scripts.updater.semver import SemVer, latest_matching_tag
+from scripts.updater.version import VersionScheme, latest_matching_version
 
 from ._metadata import read_image_digest
 
@@ -47,11 +47,16 @@ def _snapshot_revision(image_dir: Path) -> tuple[Path, Path, str]:
     return root, source, fields[2]
 
 
-def _version_for_revision(source: Path, revision: str) -> str:
+def _version_for_revision(
+    source: Path,
+    revision: str,
+    tag_pattern: str,
+    version_scheme: VersionScheme,
+) -> str:
     tags = _git_tags.remote("origin", cwd=source)
     matching = [tag for tag, commit in tags.items() if commit == revision]
-    tag = latest_matching_tag(matching, r"^v?[0-9]+\.[0-9]+\.[0-9]+$")
-    return str(SemVer.parse(tag))
+    _tag, version = latest_matching_version(matching, tag_pattern, version_scheme)
+    return version
 
 
 def _export_snapshot(source: Path, revision: str, destination: Path) -> None:
@@ -115,7 +120,19 @@ def _build_argument_arguments(build_arguments: dict[str, str]) -> list[str]:
     ]
 
 
-def _attestation_arguments() -> list[str]:
+def _label_arguments(revision: str, version: str) -> list[str]:
+    """Override source defaults with exact release identity."""
+    return [
+        "--label",
+        f"org.opencontainers.image.revision={revision}",
+        "--label",
+        f"org.opencontainers.image.version={version}",
+    ]
+
+
+def _attestation_arguments(*, push: bool) -> list[str]:
+    if not push:
+        return []
     return ["--provenance=mode=max,version=v1", "--sbom=true"]
 
 
@@ -169,13 +186,15 @@ def build(
     image: str,
     dockerfile: str = "Dockerfile",
     build_arguments: dict[str, str] | None = None,
+    tag_pattern: str = r"^v?[0-9]+\.[0-9]+\.[0-9]+$",
+    version_scheme: VersionScheme = "semver",
     push: bool = False,
 ) -> BuildResult:
     """Build source recorded by committed submodule gitlink."""
     image_dir = image_dir.resolve()
     build_arguments = build_arguments or {}
     _root, source, revision = _snapshot_revision(image_dir)
-    version = _version_for_revision(source, revision)
+    version = _version_for_revision(source, revision, tag_pattern, version_scheme)
     tag = f"{image}:{version}"
     if push:
         _require_unpublished(tag)
@@ -204,7 +223,8 @@ def build(
                 "--tag",
                 tag,
                 *_build_argument_arguments(build_arguments),
-                *_attestation_arguments(),
+                *_label_arguments(revision, version),
+                *_attestation_arguments(push=push),
                 "--metadata-file",
                 str(metadata),
                 *(_registry_cache_arguments(image) if push else []),

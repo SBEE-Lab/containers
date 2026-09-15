@@ -1,4 +1,4 @@
-"""Update an image source submodule to latest stable upstream tag."""
+"""Update an image source submodule to latest permitted upstream release."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 from scripts import _git_tags
 
 from . import _git
-from .semver import SemVer, latest_matching_tag
+from .version import VersionScheme, latest_matching_version
 
 _UPSTREAM = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
@@ -35,8 +35,9 @@ def update(
     image_dir: Path,
     upstream: str,
     tag_pattern: str = r"^v?[0-9]+\.[0-9]+\.[0-9]+$",
+    version_scheme: VersionScheme = "semver",
 ) -> UpdateResult:
-    """Update ``image_dir/src`` to highest permitted stable SemVer tag."""
+    """Update ``image_dir/src`` to highest permitted release tag."""
     image_dir = image_dir.resolve()
     source = image_dir / "src"
     root = _git.repository_root(image_dir)
@@ -47,9 +48,8 @@ def update(
     old_revision = _git.revision(source)
     _git.require_clean(source)
     tags = _remote_tags(upstream)
-    tag = latest_matching_tag(tags, tag_pattern)
+    tag, version = latest_matching_version(tags, tag_pattern, version_scheme)
     new_revision = tags[tag]
-    version = str(SemVer.parse(tag))
 
     if old_revision != new_revision:
         url = f"https://github.com/{upstream}.git"

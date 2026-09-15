@@ -52,4 +52,4 @@ jobs:
           git add images/*/src
           git commit -m "images: update upstream releases"
           git push origin "$branch"
-          gh pr create             --base main             --head "$branch"             --title "images: update upstream releases"             --body "Update image source submodules to latest stable SemVer releases."
+          gh pr create             --base main             --head "$branch"             --title "images: update upstream releases"             --body "Update image source submodules to latest permitted releases."
