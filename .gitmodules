@@ -1,3 +1,7 @@
 [submodule "images/alphafold3/src"]
 	path = images/alphafold3/src
 	url = https://github.com/google-deepmind/alphafold3.git
+[submodule "images/multievolve/src"]
+	path = images/multievolve/src
+	url = https://github.com/SBEE-Lab/MULTI-evolve.git
+	branch = docker
