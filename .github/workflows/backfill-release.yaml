@@ -39,5 +39,5 @@ jobs:
           IMAGE: ${{ inputs.image }}
           VERSION: ${{ inputs.version }}
         run: |
-          nix develop -c python scripts/builder/release.py backfill \
+          nix develop -c python -m scripts.builder.release backfill \
             "registry.sjanglab.org/sjanglab/$IMAGE" "$VERSION"

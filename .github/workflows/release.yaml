@@ -70,7 +70,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          nix develop -c python scripts/builder/release.py publish \
+          nix develop -c python -m scripts.builder.release publish \
             "${{ runner.temp }}"/image-releases/*.json
       - name: Remove Buildx builder
         if: always()
