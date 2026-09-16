@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: release-images
@@ -59,11 +59,19 @@ jobs:
         if: steps.images.outputs.names != ''
         env:
           IMAGES: ${{ steps.images.outputs.names }}
+          RELEASE_RESULTS_DIR: ${{ runner.temp }}/image-releases
         run: |
           while IFS= read -r image; do
             [[ -n "$image" ]] || continue
             nix develop -c python "images/$image/build.py" --push
           done <<< "$IMAGES"
+      - name: Publish GitHub releases
+        if: steps.images.outputs.names != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          nix develop -c python scripts/builder/release.py publish \
+            "${{ runner.temp }}"/image-releases/*.json
       - name: Remove Buildx builder
         if: always()
         run: |

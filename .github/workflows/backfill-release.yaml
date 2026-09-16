@@ -1,0 +1,43 @@
+name: Backfill Image Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Published image name
+        required: true
+        type: choice
+        options:
+          - alphafold3
+          - multievolve
+      version:
+        description: Existing immutable Registry tag
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backfill-image-release
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: [self-hosted, psi, gpu, trusted-release, container-release]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout trusted revision
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Verify image and create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ inputs.image }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          nix develop -c python scripts/builder/release.py backfill \
+            "registry.sjanglab.org/sjanglab/$IMAGE" "$VERSION"

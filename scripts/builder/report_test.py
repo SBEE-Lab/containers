@@ -3,10 +3,32 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.builder.build import BuildResult, _record_summary
+from scripts.builder.build import (
+    BuildResult,
+    _record_release_result,
+    _record_summary,
+)
 
 
 class SummaryTest(unittest.TestCase):
+    def test_records_machine_readable_release_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            previous = os.environ.get("RELEASE_RESULTS_DIR")
+            os.environ["RELEASE_RESULTS_DIR"] = directory
+            try:
+                _record_release_result(
+                    BuildResult("sha256:" + "a" * 64, "b" * 40, "3.0.4"),
+                    "registry.example/team/alphafold3",
+                )
+            finally:
+                if previous is None:
+                    del os.environ["RELEASE_RESULTS_DIR"]
+                else:
+                    os.environ["RELEASE_RESULTS_DIR"] = previous
+            content = (Path(directory) / "alphafold3.json").read_text()
+            self.assertIn('"version": "3.0.4"', content)
+            self.assertIn('"digest": "sha256:' + "a" * 64 + '"', content)
+
     def test_records_immutable_release_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             summary = Path(directory) / "summary.md"

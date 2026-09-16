@@ -166,6 +166,27 @@ def _verify_attestation(reference: str, attribute: str) -> None:
         raise ValueError(f"missing {attribute} attestation for {reference}")
 
 
+def _record_release_result(result: BuildResult, image: str) -> None:
+    directory = os.environ.get("RELEASE_RESULTS_DIR")
+    if directory is None:
+        return
+    destination = Path(directory)
+    destination.mkdir(parents=True, exist_ok=True)
+    name = image.rsplit("/", 1)[-1]
+    (destination / f"{name}.json").write_text(
+        json.dumps(
+            {
+                "image": image,
+                "digest": result.digest,
+                "revision": result.revision,
+                "version": result.version,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+
+
 def _record_summary(result: BuildResult, image: str) -> None:
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary is None:
@@ -239,4 +260,6 @@ def build(
             _verify_attestation(reference, "SBOM.SPDX")
             _verify_attestation(reference, "Provenance.SLSA")
         _record_summary(result, image)
+        if push:
+            _record_release_result(result, image)
         return result
